@@ -16,15 +16,23 @@ sudo usermod -aG sudo deploy
 sudo mkdir -p /var/www/repos /var/www/apps
 sudo chown -R deploy:deploy /var/www
 
+echo "deploy user created."
+
 # Mise à jour et installation des dépendances
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y git gh rbenv debian-keyring debian-archive-keyring apt-transport-https
 
+echo "dependances updated."
+
 # Configuration GitHub
 su deploy -c "cd /var/www/repos && gh auth login"
 
+echo "configuring GitHub."
+
 # Clonage du dépôt GitHub
 su deploy -c "cd /var/www/repos && gh repo clone $GITHUB_REPO_URL"
+
+echo "repo cloned."
 
 # Installation de RVM et Ruby
 su deploy -c "curl -sSL https://get.rvm.io | bash -s"
@@ -32,6 +40,8 @@ su deploy -c "source /home/deploy/.rvm/scripts/rvm"
 su deploy -c "rvm install 'ruby-3.1.2'"
 su deploy -c "rvm use 3.1.2"
 su deploy -c "gem update --system && gem install bundler rails"
+
+echo "RVM and Ruby installed."
 
 # Configuration de Gemfile
 su deploy -c "cd $REPO_PATH && echo 'group :development do' >> Gemfile"
@@ -41,11 +51,17 @@ su deploy -c "cd $REPO_PATH && echo '' >> Gemfile"
 su deploy -c "cd $REPO_PATH && echo 'gem \"ed25519\", \">= 1.2\", \"< 2.0\"' >> Gemfile"
 su deploy -c "cd $REPO_PATH && echo 'gem \"bcrypt_pbkdf\", \">= 1.0\", \"< 2.0\"' >> Gemfile"
 
+echo "Gemfile updated."
+
 # Installation des gems
 su deploy -c "cd $REPO_PATH && bundle"
 
+echo "gems installed."
+
 # Installation de Capistrano
 su deploy -c "cd $REPO_PATH && bundle exec cap install"
+
+echo "capistrano installed."
 
 # Configuration de Capistrano
 su deploy -c "cd $REPO_PATH && truncate -s 0 config/deploy.rb"
@@ -61,6 +77,8 @@ su deploy -c "cd $REPO_PATH && truncate -s 0 config/deploy/production.rb"
 su deploy -c "cd $REPO_PATH && cat > config/deploy/production.rb <<EOF
 server \"$IP_ADDRESS\", user: \"deploy\", roles: %w{app db web}
 EOF"
+
+echo "capistrano configured."
 
 # Configuration du service Puma
 sudo bash -c "cat > /etc/systemd/system/puma.service <<EOF
@@ -79,8 +97,12 @@ Restart=always
 WantedBy=multi-user.target
 EOF"
 
+echo "puma configured."
+
 # Déploiement avec Capistrano
 su deploy -c "cd $REPO_PATH && bundle exec cap production deploy"
+
+echo "capistrano have successfully deployed."
 
 # Installation et configuration de Caddy
 sudo bash -c "curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg"
@@ -88,10 +110,14 @@ sudo bash -c "curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.de
 sudo apt update
 sudo apt install -y caddy
 
+echo "caddy installed."
+
 # Configuration des règles iptables
 sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
 sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
 sudo iptables -A INPUT -p tcp --dport 3000 -j ACCEPT
+
+echo "iptables rules have been added for ports 80, 444 and 3000."
 
 # Démarrage des services
 # sudo systemctl start puma
@@ -112,11 +138,14 @@ $DOMAIN_NAME {
 }
 EOF"
 
+
 # Vérification et démarrage de Caddy
 cd /etc/caddy
 sudo systemctl stop caddy
 sudo caddy fmt --overwrite
 # sudo caddy run
+
+echo "caddy configured."
 
 
 # Configuration de l'environnement de production
@@ -125,6 +154,8 @@ su deploy -c "echo 'Rails.application.configure do
   config.hosts << \"$DOMAIN_NAME\"
   # ...
 end' >> $REPO_PATH/config/environments/production.rb"
+
+echo "production environment configured."
 
 # Suppression du contenu original et ajout du nouveau contenu dans le fichier puma.rb
 su deploy -c "echo '# Change \"$APP_NAME\" to the actual name of your application
@@ -158,22 +189,32 @@ preload_app!
 # Allow puma to be restarted by `systemctl restart puma`.
 plugin :tmp_restart' > $REPO_PATH/config/puma.rb"
 
+echo "config/puma.rb updated."
+
 # Génération d'une nouvelle secret_key_base
 su deploy -c "cd $APP_PATH/current && rake assets:precompile"
 su deploy -c "cd $APP_PATH/current && bin/rails secret > secret_key_base.txt"
 SECRET_KEY_BASE=$(su deploy -c "cat $APP_PATH/current/secret_key_base.txt")
 su deploy -c "echo 'secret_key_base: $SECRET_KEY_BASE' > $APP_PATH/current/config/credentials/production.key"
 
+echo "secret key added."
+
 # Création des répertoires nécessaires
 su deploy -c "mkdir -p $APP_PATH/shared/log/"
 su deploy -c "mkdir -p $APP_PATH/shared/tmp/"
 su deploy -c "mkdir -p $APP_PATH/shared/tmp/pids/"
 
+echo "directories created for logs and PIDS."
+
 # Redémarrage des services
 sudo systemctl restart puma
 sudo systemctl restart caddy
 
+echo "services reloaded"
+
 # Nettoyage
 su deploy -c "rm $APP_PATH/current/secret_key_base.txt"
+
+echo "secret key cleaned"
 
 echo "Déploiement terminé. Votre application est maintenant accessible à l'adresse : http://$DOMAIN_NAME"

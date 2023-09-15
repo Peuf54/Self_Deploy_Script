@@ -94,8 +94,8 @@ sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
 sudo iptables -A INPUT -p tcp --dport 3000 -j ACCEPT
 
 # Démarrage des services
-sudo systemctl start puma
-sudo systemctl start caddy
+# sudo systemctl start puma
+# sudo systemctl start caddy
 
 # Configuration de Caddyfile
 sudo truncate -s 0 /etc/caddy/Caddyfile
@@ -116,7 +116,8 @@ EOF"
 cd /etc/caddy
 sudo systemctl stop caddy
 sudo caddy fmt --overwrite
-sudo caddy run
+# sudo caddy run
+
 
 # Configuration de l'environnement de production
 su deploy -c "echo 'Rails.application.configure do
